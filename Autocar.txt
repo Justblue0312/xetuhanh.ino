@@ -1,0 +1,201 @@
+#include <Servo.h>          //Servo motor library. This is standard library
+#include <NewPing.h>        //Ultrasonic sensor function library. You must install this library
+
+//our L298N control pins
+const int LeftMotorForward = 11;      // IN2
+const int LeftMotorBackward = 3;     // IN1
+const int RightMotorForward = 6;     // IN4
+const int RightMotorBackward = 5;    // IN3
+char t;       // Biến nhận từ Bluetooth
+
+//sensor pins
+#define trig_pin A1 //analog input 1
+#define echo_pin A2 //analog input 2
+
+#define maximum_distance 200
+boolean goesForward = false;      // Biến cờ
+int distance = 100;       // Khoảng cách mặc định
+int vel = 130;            // Biến tốc độ
+int vel1 = 100;           // Biến tốc độ
+
+NewPing sonar(trig_pin, echo_pin, maximum_distance); //sensor function
+Servo servo_motor; //our servo name
+
+
+void setup(){
+
+  pinMode(RightMotorForward, OUTPUT);
+  pinMode(LeftMotorForward, OUTPUT);
+  pinMode(LeftMotorBackward, OUTPUT);
+  pinMode(RightMotorBackward, OUTPUT);
+  Serial.begin(9600);    // Arduino truyền với tốc độ 9600 b/s
+  
+  servo_motor.attach(9); //our servo pin
+
+  servo_motor.write(90); // servo quay về vị trí mặc định
+  delay(2000);
+  distance = readPing(); //đọc khoảng cách, test cảm biến
+  delay(100);
+  distance = readPing(); //đọc khoảng cách, test cảm biến
+  delay(100);
+  distance = readPing(); //đọc khoảng cách, test cảm biến
+  delay(100);
+  distance = readPing(); //đọc khoảng cách, test cảm biến
+  delay(100);
+}
+void loop(){
+  servo_motor.write(90);      //Góc quay servo
+  if(Serial.available()){
+    t = Serial.read();        //Đọc tín hiệu từ Bluetooth
+    Serial.println(t);
+  }
+  if(t == 'F'){      // Chạy thẳng
+    servo_motor.write(90);
+    analogWrite(RightMotorForward, vel);
+    analogWrite(LeftMotorForward, vel);
+    Serial.println(t);
+  }
+  else if(t == 'B'){       // Lùi
+    analogWrite(RightMotorBackward, vel);
+    analogWrite(LeftMotorBackward, vel);
+    Serial.println(t);
+  }
+  else if(t == 'R'){        // Rẽ Phải
+    servo_motor.write(45);
+    analogWrite(LeftMotorForward, vel1);
+    Serial.println(t);
+  }
+  else if(t == 'L'){        // Rẽ Trái
+    servo_motor.write(135);
+    analogWrite(RightMotorForward, vel1);
+    Serial.println(t);
+  }
+  else if(t == 'A'){        // Chạy tự động
+    do{
+      tulai();
+    }while(t == 'S'); // chạy tới khi gặp kí hiệu S thì dừng lại
+  }
+  else if(t == 'S'){ // Xe dừng lại
+    servo_motor.write(90);
+    analogWrite(RightMotorForward, LOW);
+    analogWrite(LeftMotorForward, LOW);
+    analogWrite(RightMotorBackward, LOW);
+    analogWrite(LeftMotorBackward, LOW);
+    Serial.println(t);
+  }
+  delay(100);
+}
+
+void tulai(){ //hàm tự lái
+
+  int distanceRight = 0; //Khoảng cách trái
+  int distanceLeft = 0;  //Khoảng cách phải
+  delay(50);
+
+  if (distance <= 40){ //thực hiện so sánh với khoảng cách mặc định
+    moveStop(); //dừng lại
+    delay(300);
+    moveBackward(); // lùi lại
+    delay(250);
+    moveStop(); //dừng lại
+    delay(300);
+    distanceRight = lookRight(); //nhìn phải và đo khoảng cách
+    delay(300);
+    distanceLeft = lookLeft();  //nhìn trái và đo khoảng cách
+    delay(300);
+
+    if (distanceLeft >= distanceRight){ // so sánh khoảng cách trái phải
+          turnLeft();
+          moveStop();
+        }else{
+          turnRight();
+          moveStop();
+          }
+  }
+  else{
+    moveForward(); 
+  }
+    distance = readPing();
+}
+
+int lookRight(){  // Hàm nhìn phải
+  servo_motor.write(0);
+  delay(500);
+  int distance = readPing();
+  delay(100);
+  servo_motor.write(90);
+  return distance;
+}
+
+int lookLeft(){  //Hàm nhìn trái
+  servo_motor.write(180);
+  delay(500);
+  int distance = readPing();
+  delay(100);
+  servo_motor.write(90);
+  return distance;
+}
+
+int readPing(){ // Hàm đọc khoảng cách từ cảm biến siêu âm
+  delay(70);
+  int cm = sonar.ping_cm(); //Chuyển đồi khoảng cách về đơn vị siêu âm
+  if (cm==0){
+    cm=250;
+  }
+  return cm;
+}
+
+void moveStop(){ // Hàm dừng
+  
+  analogWrite(RightMotorForward, LOW);
+  analogWrite(LeftMotorForward, LOW);
+  analogWrite(RightMotorBackward, LOW);
+  analogWrite(LeftMotorBackward, LOW);
+}
+
+void moveForward(){ // Hàm tiến
+
+  if(!goesForward){
+
+    goesForward=true;
+    
+    analogWrite(RightMotorForward, vel);
+    analogWrite(LeftMotorForward, vel);
+    analogWrite(RightMotorBackward, LOW);
+    analogWrite(LeftMotorBackward, LOW);
+  }
+}
+
+void moveBackward(){ // Hàm Lùi
+
+  goesForward=false;
+
+   analogWrite(RightMotorForward, LOW);
+   analogWrite(LeftMotorForward, LOW);
+   analogWrite(RightMotorBackward, vel);
+   analogWrite(LeftMotorBackward, vel);
+}
+
+void turnRight(){ // Quay phải
+
+  analogWrite(LeftMotorForward, vel1);
+  analogWrite(RightMotorBackward, vel1);
+  
+  analogWrite(LeftMotorBackward, LOW);
+  analogWrite(RightMotorForward, LOW);
+  
+  delay(500);
+  
+}
+
+void turnLeft(){ // Quay trái
+
+  analogWrite(LeftMotorBackward, vel1);
+  analogWrite(RightMotorForward, vel1);
+  
+  analogWrite(LeftMotorForward, LOW);
+  analogWrite(RightMotorBackward, LOW);
+
+  delay(500);
+
+}
